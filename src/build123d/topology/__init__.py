@@ -34,12 +34,14 @@ from .shape_core import (
     Comparable,
     GroupBy,
     ShapeList,
+    OperationJournal,
     topo_distance_to,
     Joint,
     SkipClean,
     BoundBox,
     downcast,
     fix,
+    operation_journal,
     unwrap_topods_compound,
 )
 from .utils import (
@@ -72,6 +74,8 @@ __all__ = [
     "ShapeList",
     "topo_distance_to",
     "Joint",
+    "OperationJournal",
+    "operation_journal",
     "SkipClean",
     "BoundBox",
     "downcast",

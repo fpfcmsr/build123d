@@ -49,6 +49,7 @@ from __future__ import annotations
 import copy
 import itertools
 import warnings
+import contextvars
 from abc import ABC, abstractmethod
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator
@@ -170,6 +171,17 @@ TrimmingTool = Union[Plane, "Shell", "Face"]
 TOPODS = TypeVar("TOPODS", bound=TopoDS_Shape)
 CalcFn = Callable[[TopoDS_Shape, GProp_GProps], None]
 CompositeFactory = Callable[[Iterable["Shape"]], "Shape"]
+
+
+class OperationJournal(Protocol):
+    """Protocol for external operation observers (e.g., provenance tracking)."""
+
+    def record(self, event: str, /, **kwargs: Any) -> None: ...
+
+
+operation_journal: contextvars.ContextVar[OperationJournal] = contextvars.ContextVar(
+    "operation_journal"
+)
 
 
 class Shape(NodeMixin, Generic[TOPODS]):
