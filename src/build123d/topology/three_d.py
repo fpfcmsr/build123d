@@ -123,6 +123,7 @@ from .shape_core import (
     _sew_topods_faces,
     downcast,
     get_top_level_topods_shapes,
+    operation_journal,
     shapetype,
     unwrap_topods_compound,
     _make_topods_compound_from_shapes,
@@ -288,6 +289,12 @@ class Mixin3D(Shape[TOPODS]):
                 "Failed creating a chamfer, try a smaller length value(s)"
             ) from err
 
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "chamfer", builder=chamfer_builder,
+                input_shape=self, result=new_shape,
+            )
         return new_shape
 
     def dprism(
@@ -373,6 +380,12 @@ class Mixin3D(Shape[TOPODS]):
                 f" or use max_fillet() to find the largest valid fillet radius"
             ) from err
 
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "fillet", builder=fillet_builder,
+                input_shape=self, result=new_shape,
+            )
         return new_shape
 
     def hollow(
@@ -440,6 +453,12 @@ class Mixin3D(Shape[TOPODS]):
             # fix needed for the orientations
             return_value = self.__class__.cast(sol.Shape()).fix()
 
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "hollow", builder=shell_builder,
+                input_shape=self, result=return_value,
+            )
         return return_value
 
     def _intersect(
@@ -690,6 +709,12 @@ class Mixin3D(Shape[TOPODS]):
         if offset_solid.volume < 0:
             offset_solid.wrapped.Reverse()
 
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "offset_3d", builder=offset_builder,
+                input_shape=self, result=offset_solid,
+            )
         return offset_solid
 
     def project_to_viewport(
@@ -1019,7 +1044,11 @@ class Solid(Mixin3D[TopoDS_Solid]):
         Returns:
             Edge: extruded shape
         """
-        return Solid(TopoDS.Solid(_extrude_topods_shape(obj.wrapped, direction)))
+        result = Solid(TopoDS.Solid(_extrude_topods_shape(obj.wrapped, direction)))
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record("extrude", input_shape=obj, result=result)
+        return result
 
     @classmethod
     def extrude_linear_with_rotation(
@@ -1424,7 +1453,11 @@ class Solid(Mixin3D[TopoDS_Solid]):
         Returns:
             Solid: Lofted object
         """
-        return cls(TopoDS.Solid(_make_loft(objs, True, ruled)))
+        result = cls(TopoDS.Solid(_make_loft(objs, True, ruled)))
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record("loft", input_shapes=list(objs), result=result)
+        return result
 
     @classmethod
     def make_sphere(
@@ -1575,7 +1608,14 @@ class Solid(Mixin3D[TopoDS_Solid]):
             True,
         )
 
-        return cls(TopoDS.Solid(revol_builder.Shape()))
+        result = cls(TopoDS.Solid(revol_builder.Shape()))
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "revolve", builder=revol_builder,
+                input_shape=section_face, result=result,
+            )
+        return result
 
     @classmethod
     def sweep(
@@ -1653,11 +1693,17 @@ class Solid(Mixin3D[TopoDS_Solid]):
         outer_shape, inner_shapes = shapes[0], shapes[1:]
 
         if inner_shapes:
-            hollow_outer_shape = outer_shape.cut(*inner_shapes)
-            assert isinstance(hollow_outer_shape, Solid)
-            return hollow_outer_shape
+            sweep_result = outer_shape.cut(*inner_shapes)
+            assert isinstance(sweep_result, Solid)
+        else:
+            sweep_result = outer_shape
 
-        return outer_shape
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "sweep", input_shape=section, result=sweep_result,
+            )
+        return sweep_result
 
     @classmethod
     def sweep_multi(
@@ -1723,7 +1769,14 @@ class Solid(Mixin3D[TopoDS_Solid]):
         if make_solid:
             builder.MakeSolid()
 
-        return cls(TopoDS.Solid(builder.Shape()))
+        result = cls(TopoDS.Solid(builder.Shape()))
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "sweep", builder=builder,
+                input_shapes=list(profiles), result=result,
+            )
+        return result
 
     @classmethod
     def thicken(
@@ -1783,6 +1836,12 @@ class Solid(Mixin3D[TopoDS_Solid]):
         except StdFail_NotDone as err:
             raise RuntimeError("Error applying thicken to given surface") from err
 
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "thicken", builder=offset_builder,
+                input_shape=surface, result=result,
+            )
         return result
 
     def draft(self, faces: Iterable[Face], neutral_plane: Plane, angle: float) -> Solid:
@@ -1833,6 +1892,12 @@ class Solid(Mixin3D[TopoDS_Solid]):
                 face=None,
                 problematic_shape=draft_angle_builder.ProblematicShape(),
             ) from err
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "draft", builder=draft_angle_builder,
+                input_shape=self, result=result,
+            )
         return result
 
 

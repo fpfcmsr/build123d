@@ -77,6 +77,7 @@ from build123d.topology import (
     Solid,
     Vertex,
     Wire,
+    operation_journal,
     tuplify,
     new_edges,
 )
@@ -512,6 +513,18 @@ class Builder(ABC, Generic[ShapeT]):
                     ShapeList(typed[cls])
                     if self._shape == cls
                     else ShapeList(post - pre[cls])
+                )
+
+            _journal = operation_journal.get(None)
+            if _journal is not None:
+                _journal.record(
+                    "context_add",
+                    builder=self,
+                    objects=list(objects),
+                    mode=mode,
+                    before=self.obj_before,
+                    after=self._obj,
+                    lasts=dict(self.lasts),
                 )
 
             # Cast to appropriate base types (Curve, Sketch or Part)

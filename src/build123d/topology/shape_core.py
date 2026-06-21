@@ -2075,6 +2075,13 @@ class Shape(NodeMixin, Generic[TOPODS]):
         if isinstance(split_result, TopoDS_Compound):
             split_result = unwrap_topods_compound(split_result, True)
 
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "split", builder=splitter,
+                input_shape=self, result=self.__class__.cast(split_result),
+            )
+
         # For speed the user may just want all the objects which they
         # can sort more efficiently then the generic algorithm below
         if keep == Keep.ALL:
@@ -2371,10 +2378,15 @@ class Shape(NodeMixin, Generic[TOPODS]):
         if self._wrapped is None:
             return self
         new_shape = copy.deepcopy(self, None)
-        transformed = downcast(
-            BRepBuilderAPI_GTransform(self.wrapped, t_matrix.wrapped, True).Shape()
-        )
-        new_shape.wrapped = tcast(TOPODS, transformed)
+        builder = BRepBuilderAPI_GTransform(self.wrapped, t_matrix.wrapped, True)
+        new_shape.wrapped = tcast(TOPODS, downcast(builder.Shape()))
+
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "scale", builder=builder,
+                input_shape=self, result=new_shape,
+            )
 
         return new_shape
 
@@ -2475,12 +2487,20 @@ class Shape(NodeMixin, Generic[TOPODS]):
         if self._wrapped is None:
             return self
         shape_copy: Shape = copy.deepcopy(self, None)
-        transformed_shape = BRepBuilderAPI_Transform(
+        builder = BRepBuilderAPI_Transform(
             self.wrapped,
             transformation,
             True,
-        ).Shape()
-        shape_copy.wrapped = tcast(TOPODS, downcast(transformed_shape))
+        )
+        shape_copy.wrapped = tcast(TOPODS, downcast(builder.Shape()))
+
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "scale", builder=builder,
+                input_shape=self, result=shape_copy,
+            )
+        
         return shape_copy
 
     def _bool_op(
@@ -2557,6 +2577,7 @@ class Shape(NodeMixin, Generic[TOPODS]):
             topo_result = downcast(operation.Shape())
 
         # Clean
+        upgrader = None
         if SkipClean.clean:
             upgrader = ShapeUpgrade_UnifySameDomain(topo_result, True, True, True)
             upgrader.AllowInternalEdges(False)
@@ -2579,11 +2600,20 @@ class Shape(NodeMixin, Generic[TOPODS]):
                 base.copy_attributes_to(result, ["wrapped", "_NodeMixin__children"])
             result = Shape.make_composite(results, highest_order[1])
             base.copy_attributes_to(result, ["wrapped", "_NodeMixin__children"])
-            return result
+        else:
+            result = highest_order[0].cast(topo_result)
+            base.copy_attributes_to(result, ["wrapped", "_NodeMixin__children"])
 
-        result = highest_order[0].cast(topo_result)
-        base.copy_attributes_to(result, ["wrapped", "_NodeMixin__children"])
-
+        _journal = operation_journal.get(None)
+        if _journal is not None:
+            _journal.record(
+                "boolean",
+                operation=operation,
+                upgrader=upgrader,
+                args=args,
+                tools=tools,
+                result=result,
+            )
         return result
 
     def _bool_op_list(
